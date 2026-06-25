@@ -1,12 +1,11 @@
 import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
 import { config, isAllowedRole } from "../../lib/config";
-import { getStoredToken, getStoredUser } from "../../lib/auth";
 import type { ReactNode } from "react";
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const token = getStoredToken();
-  const user = getStoredUser();
+  const { token, user } = useAuth();
 
   if (config.authRequired) {
     if (!token || !user) {

@@ -1,9 +1,15 @@
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { config } from "../../lib/config";
 
 export function AppShell() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate("/login", { replace: true });
+  }
   const navCls = ({ isActive }: { isActive: boolean }) =>
     `text-sm font-medium ${isActive ? "text-violet-700" : "text-slate-600 hover:text-slate-900"}`;
 
@@ -37,7 +43,7 @@ export function AppShell() {
                 <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{user.role}</span>
                 <button
                   type="button"
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="text-xs font-medium text-slate-500 hover:text-slate-800"
                 >
                   Sign out

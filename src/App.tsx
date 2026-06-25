@@ -7,12 +7,13 @@ import { LoginPage } from "./pages/LoginPage";
 import { SchedulesPage } from "./pages/SchedulesPage";
 import { TenantDetailPage } from "./pages/TenantDetailPage";
 import { TenantsPage } from "./pages/TenantsPage";
-import { config, isAllowedRole } from "./lib/config";
-import { getStoredToken, getStoredUser } from "./lib/auth";
+import { config } from "./lib/config";
+import { useAuth } from "./contexts/AuthContext";
 
-function isAdminSession(): boolean {
-  const user = getStoredUser();
-  return !!getStoredToken() && !!user && isAllowedRole(user.role);
+function RootRedirect() {
+  const { isAuthenticated } = useAuth();
+  const goLogin = config.authRequired && !isAuthenticated;
+  return <Navigate to={goLogin ? "/login" : "/"} replace />;
 }
 
 export default function App() {
@@ -33,10 +34,7 @@ export default function App() {
             <Route path="tenants/:tenantId" element={<TenantDetailPage />} />
             <Route path="schedules" element={<SchedulesPage />} />
           </Route>
-          <Route
-            path="*"
-            element={<Navigate to={config.authRequired && !isAdminSession() ? "/login" : "/"} replace />}
-          />
+          <Route path="*" element={<RootRedirect />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

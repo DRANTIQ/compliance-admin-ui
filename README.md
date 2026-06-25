@@ -67,7 +67,7 @@ VITE_APP_TITLE=Compliance Admin
 VITE_ALLOWED_ROLES=super_admin
 ```
 
-**JWT:** Same `JWT_SECRET_KEY` in steampipe `.env`. Set `API_AUTH_REQUIRED=true` on Stage 1 when ready for prod.
+**JWT:** Same `JWT_SECRET_KEY` in steampipe and cloud-compliance-engine `.env`. `API_AUTH_REQUIRED=true` by default in `env.example`.
 
 ---
 
