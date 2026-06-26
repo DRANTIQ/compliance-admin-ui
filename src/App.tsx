@@ -1,9 +1,11 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { AuthSessionEffects } from "./components/auth/AuthSessionEffects";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { AppShell } from "./components/layout/AppShell";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
+import { MonitoringPage } from "./pages/MonitoringPage";
 import { SchedulesPage } from "./pages/SchedulesPage";
 import { TenantDetailPage } from "./pages/TenantDetailPage";
 import { TenantsPage } from "./pages/TenantsPage";
@@ -20,6 +22,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <AuthSessionEffects />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route
@@ -30,6 +33,7 @@ export default function App() {
             }
           >
             <Route index element={<DashboardPage />} />
+            <Route path="monitoring" element={<MonitoringPage />} />
             <Route path="tenants" element={<TenantsPage />} />
             <Route path="tenants/:tenantId" element={<TenantDetailPage />} />
             <Route path="schedules" element={<SchedulesPage />} />

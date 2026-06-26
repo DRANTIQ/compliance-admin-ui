@@ -33,6 +33,24 @@ export function clearAuth(): void {
   localStorage.removeItem(AUTH_USER_KEY);
 }
 
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler;
+}
+
+export function notifyUnauthorized(): void {
+  if (unauthorizedHandler) {
+    unauthorizedHandler();
+    return;
+  }
+  clearAuth();
+  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+    window.location.assign("/login");
+  }
+}
+
 export async function login(email: string, password: string, stage1Url: string): Promise<LoginResult> {
   const url = `${stage1Url.replace(/\/$/, "")}/api/v1/auth/login`;
   const res = await fetch(url, {

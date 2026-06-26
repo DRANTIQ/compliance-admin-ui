@@ -70,3 +70,29 @@ export interface ScanTriggerBody {
   category?: string;
   triggered_by?: string;
 }
+
+export interface TenantUser {
+  id: string;
+  tenant_id: string;
+  email: string;
+  username: string | null;
+  role: string;
+  active: boolean;
+  last_login: string | null;
+  created_at: string;
+}
+
+export interface TenantUserCreate {
+  email: string;
+  password: string;
+  role?: string;
+  username?: string;
+}
+
+export interface TenantUserUpdate {
+  email?: string;
+  password?: string;
+  role?: string;
+  active?: boolean;
+  username?: string;
+}

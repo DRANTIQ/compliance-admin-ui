@@ -3,9 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import { EmptyState } from "../components/common/EmptyState";
 import { ErrorAlert } from "../components/common/ErrorAlert";
 import { LoadingSpinner } from "../components/common/LoadingSpinner";
-import { createAccount, getTenant, listAccounts, triggerScan } from "../lib/api";
+import { createAccount, createTenantUser, deactivateTenantUser, getTenant, listAccounts, listTenantUsers, triggerScan, updateTenantUser } from "../lib/api";
 import { formatDate, truncateId } from "../lib/format";
-import type { CloudAccount, Tenant } from "../types/stage1";
+import type { CloudAccount, Tenant, TenantUser } from "../types/stage1";
 
 export function TenantDetailPage() {
   const { tenantId } = useParams<{ tenantId: string }>();
@@ -20,15 +20,29 @@ export function TenantDetailPage() {
   const [accountId, setAccountId] = useState("");
   const [accountName, setAccountName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [users, setUsers] = useState<TenantUser[]>([]);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const [userPassword, setUserPassword] = useState("");
+  const [userRole, setUserRole] = useState("tenant_admin");
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editRole, setEditRole] = useState("tenant_admin");
+  const [editPassword, setEditPassword] = useState("");
+  const [userSubmitting, setUserSubmitting] = useState(false);
 
   async function load() {
     if (!tenantId) return;
     setLoading(true);
     setError(null);
     try {
-      const [t, accs] = await Promise.all([getTenant(tenantId), listAccounts(tenantId)]);
+      const [t, accs, usrs] = await Promise.all([
+        getTenant(tenantId),
+        listAccounts(tenantId),
+        listTenantUsers(tenantId),
+      ]);
       setTenant(t);
       setAccounts(accs);
+      setUsers(usrs);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load tenant");
     } finally {
@@ -74,6 +88,77 @@ export function TenantDetailPage() {
       setError(err instanceof Error ? err.message : "Failed to create account");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function onCreateUser(e: FormEvent) {
+    e.preventDefault();
+    if (!tenantId) return;
+    setUserSubmitting(true);
+    setError(null);
+    try {
+      await createTenantUser(tenantId, {
+        email: userEmail,
+        password: userPassword,
+        role: userRole,
+      });
+      setUserEmail("");
+      setUserPassword("");
+      setUserRole("tenant_admin");
+      setShowUserForm(false);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create user");
+    } finally {
+      setUserSubmitting(false);
+    }
+  }
+
+  async function onSaveUser(userId: string) {
+    if (!tenantId) return;
+    setUserSubmitting(true);
+    setError(null);
+    try {
+      await updateTenantUser(tenantId, userId, {
+        role: editRole,
+        ...(editPassword ? { password: editPassword } : {}),
+      });
+      setEditingUserId(null);
+      setEditPassword("");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update user");
+    } finally {
+      setUserSubmitting(false);
+    }
+  }
+
+  async function onDeactivateUser(user: TenantUser) {
+    if (!tenantId) return;
+    if (!window.confirm(`Deactivate ${user.email}? They will no longer be able to sign in.`)) return;
+    setUserSubmitting(true);
+    setError(null);
+    try {
+      await deactivateTenantUser(tenantId, user.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to deactivate user");
+    } finally {
+      setUserSubmitting(false);
+    }
+  }
+
+  async function onReactivateUser(user: TenantUser) {
+    if (!tenantId) return;
+    setUserSubmitting(true);
+    setError(null);
+    try {
+      await updateTenantUser(tenantId, user.id, { active: true });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reactivate user");
+    } finally {
+      setUserSubmitting(false);
     }
   }
 
@@ -193,6 +278,185 @@ export function TenantDetailPage() {
                     >
                       {scanningId === a.id ? "Starting…" : "Run CIS scan"}
                     </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-slate-900">Users</h2>
+        <button
+          type="button"
+          onClick={() => setShowUserForm((v) => !v)}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
+        >
+          {showUserForm ? "Cancel" : "Add user"}
+        </button>
+      </div>
+
+      {showUserForm && (
+        <form onSubmit={onCreateUser} className="rounded-xl border border-slate-200 bg-white p-6">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label className="block text-sm font-medium">Email</label>
+              <input
+                required
+                type="email"
+                value={userEmail}
+                onChange={(e) => setUserEmail(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Password</label>
+              <input
+                required
+                type="password"
+                minLength={8}
+                value={userPassword}
+                onChange={(e) => setUserPassword(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Role</label>
+              <select
+                value={userRole}
+                onChange={(e) => setUserRole(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="tenant_admin">tenant_admin</option>
+                <option value="tenant_user">tenant_user</option>
+                <option value="viewer">viewer</option>
+              </select>
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={userSubmitting}
+            className="mt-4 rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {userSubmitting ? "Saving…" : "Create user"}
+          </button>
+        </form>
+      )}
+
+      {users.length === 0 ? (
+        <EmptyState title="No users" description="Add a user so they can sign in to the client dashboard." />
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Last login</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {users.map((u) => (
+                <tr key={u.id} className={!u.active ? "bg-slate-50/80" : undefined}>
+                  <td className="px-4 py-3">
+                    <p className="font-medium">{u.email}</p>
+                    <p className="font-mono text-xs text-slate-400">{truncateId(u.id, 10)}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    {editingUserId === u.id ? (
+                      <select
+                        value={editRole}
+                        onChange={(e) => setEditRole(e.target.value)}
+                        className="rounded border border-slate-300 px-2 py-1 text-xs"
+                      >
+                        <option value="tenant_admin">tenant_admin</option>
+                        <option value="tenant_user">tenant_user</option>
+                        <option value="viewer">viewer</option>
+                      </select>
+                    ) : (
+                      u.role
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        u.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      {u.active ? "active" : "inactive"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-500">{formatDate(u.last_login)}</td>
+                  <td className="px-4 py-3 text-right">
+                    {editingUserId === u.id ? (
+                      <div className="flex flex-col items-end gap-2">
+                        <input
+                          type="password"
+                          placeholder="New password (optional)"
+                          minLength={8}
+                          value={editPassword}
+                          onChange={(e) => setEditPassword(e.target.value)}
+                          className="w-44 rounded border border-slate-300 px-2 py-1 text-xs"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            disabled={userSubmitting}
+                            onClick={() => void onSaveUser(u.id)}
+                            className="rounded bg-violet-700 px-2 py-1 text-xs font-semibold text-white"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingUserId(null);
+                              setEditPassword("");
+                            }}
+                            className="rounded border px-2 py-1 text-xs"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={userSubmitting}
+                          onClick={() => {
+                            setEditingUserId(u.id);
+                            setEditRole(u.role);
+                            setEditPassword("");
+                          }}
+                          className="text-xs font-medium text-violet-700 hover:underline"
+                        >
+                          Edit
+                        </button>
+                        {u.active ? (
+                          <button
+                            type="button"
+                            disabled={userSubmitting}
+                            onClick={() => void onDeactivateUser(u)}
+                            className="text-xs font-medium text-red-600 hover:underline"
+                          >
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={userSubmitting}
+                            onClick={() => void onReactivateUser(u)}
+                            className="text-xs font-medium text-emerald-700 hover:underline"
+                          >
+                            Reactivate
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

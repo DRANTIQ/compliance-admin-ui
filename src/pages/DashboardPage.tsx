@@ -89,6 +89,13 @@ export function DashboardPage() {
             Manage tenants →
           </Link>
         </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Monitoring</p>
+          <p className="mt-3 text-sm text-slate-600">Queues, stuck batches, compliance lag</p>
+          <Link to="/monitoring" className="mt-3 inline-block text-sm font-medium text-violet-700 hover:underline">
+            Open monitoring →
+          </Link>
+        </div>
       </div>
     </div>
   );

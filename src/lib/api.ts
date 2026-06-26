@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { getStoredToken } from "./auth";
+import { getStoredToken, notifyUnauthorized } from "./auth";
 import type {
   CloudAccount,
   CloudAccountCreate,
@@ -8,7 +8,11 @@ import type {
   Schedule,
   Tenant,
   TenantCreate,
+  TenantUser,
+  TenantUserCreate,
+  TenantUserUpdate,
 } from "../types/stage1";
+import type { ComplianceOpsStatus, Stage1OpsSummary } from "../types/ops";
 
 export class ApiError extends Error {
   constructor(
@@ -45,6 +49,35 @@ async function stage1Request<T>(
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
   if (!res.ok) {
+    if (res.status === 401 && config.authRequired) {
+      notifyUnauthorized();
+    }
+    const text = await res.text();
+    throw new ApiError(text || res.statusText, res.status);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+async function complianceRequest<T>(
+  path: string,
+  options: { method?: string; body?: unknown; params?: Record<string, string | number | undefined> } = {},
+): Promise<T> {
+  const url = new URL(path, config.complianceUrl);
+  if (options.params) {
+    for (const [k, v] of Object.entries(options.params)) {
+      if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
+    }
+  }
+  const res = await fetch(url.toString(), {
+    method: options.method ?? "GET",
+    headers: authHeaders(),
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+  });
+  if (!res.ok) {
+    if (res.status === 401 && config.authRequired) {
+      notifyUnauthorized();
+    }
     const text = await res.text();
     throw new ApiError(text || res.statusText, res.status);
   }
@@ -72,6 +105,26 @@ export function createAccount(tenantId: string, body: CloudAccountCreate): Promi
   return stage1Request(`/api/v1/tenants/${tenantId}/accounts`, { method: "POST", body });
 }
 
+export function listTenantUsers(tenantId: string): Promise<TenantUser[]> {
+  return stage1Request(`/api/v1/tenants/${tenantId}/users`, { params: { limit: 100 } });
+}
+
+export function createTenantUser(tenantId: string, body: TenantUserCreate): Promise<TenantUser> {
+  return stage1Request(`/api/v1/tenants/${tenantId}/users`, { method: "POST", body });
+}
+
+export function updateTenantUser(
+  tenantId: string,
+  userId: string,
+  body: TenantUserUpdate,
+): Promise<TenantUser> {
+  return stage1Request(`/api/v1/tenants/${tenantId}/users/${userId}`, { method: "PATCH", body });
+}
+
+export function deactivateTenantUser(tenantId: string, userId: string): Promise<void> {
+  return stage1Request(`/api/v1/tenants/${tenantId}/users/${userId}`, { method: "DELETE" });
+}
+
 export function triggerScan(body: ScanTriggerBody): Promise<ScanTriggerResult> {
   return stage1Request("/api/v1/executions/scan", {
     method: "POST",
@@ -96,4 +149,18 @@ export function checkStage1Health(): Promise<{ status: string }> {
 
 export function checkComplianceHealth(): Promise<{ status: string }> {
   return fetch(`${config.complianceUrl.replace(/\/$/, "")}/health`).then((r) => r.json());
+}
+
+export function getStage1OpsSummary(
+  olderThanMinutes = 30,
+): Promise<Stage1OpsSummary> {
+  return stage1Request("/api/v1/ops/summary", {
+    params: { older_than_minutes: olderThanMinutes },
+  });
+}
+
+export function getComplianceOpsStatus(olderThanMinutes = 30): Promise<ComplianceOpsStatus> {
+  return complianceRequest("/v1/ops/status", {
+    params: { older_than_minutes: olderThanMinutes },
+  });
 }
